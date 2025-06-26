@@ -1,52 +1,40 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Calendar, Clock } from "lucide-react";
+import { Plus, Calendar, Clock, LogOut, User } from "lucide-react";
 import { CourseForm } from "@/components/CourseForm";
 import { WeeklyView } from "@/components/WeeklyView";
 import { TodayView } from "@/components/TodayView";
 import { Course, CourseData } from "@/components/Course";
 import { useToast } from "@/hooks/use-toast";
+import { useCourses } from "@/hooks/useCourses";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const Index = () => {
-  const [courses, setCourses] = useState<CourseData[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingCourse, setEditingCourse] = useState<CourseData | null>(null);
   const { toast } = useToast();
+  const { courses, loading, saveCourse, deleteCourse } = useCourses();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
-  // Load courses from localStorage on component mount
-  useEffect(() => {
-    const savedCourses = localStorage.getItem('semesterCourses');
-    if (savedCourses) {
-      setCourses(JSON.parse(savedCourses));
-    }
-  }, []);
+  // Redirect to auth if not logged in
+  if (!user) {
+    navigate('/auth');
+    return null;
+  }
 
-  // Save courses to localStorage whenever courses change
-  useEffect(() => {
-    localStorage.setItem('semesterCourses', JSON.stringify(courses));
-  }, [courses]);
-
-  const handleSaveCourse = (courseData: Omit<CourseData, 'id'> & { id?: string }) => {
+  const handleSaveCourse = async (courseData: Omit<CourseData, 'id'> & { id?: string }) => {
+    await saveCourse(courseData);
+    
     if (courseData.id) {
-      // Editing existing course
-      setCourses(prev => prev.map(course => 
-        course.id === courseData.id 
-          ? { ...courseData, id: courseData.id }
-          : course
-      ));
       toast({
         title: "Course updated",
         description: `${courseData.name} has been updated successfully.`,
       });
     } else {
-      // Adding new course
-      const newCourse: CourseData = {
-        ...courseData,
-        id: Date.now().toString()
-      };
-      setCourses(prev => [...prev, newCourse]);
       toast({
         title: "Course added",
         description: `${courseData.name} has been added to your timetable.`,
@@ -62,9 +50,9 @@ const Index = () => {
     setShowForm(true);
   };
 
-  const handleDeleteCourse = (id: string) => {
+  const handleDeleteCourse = async (id: string) => {
     const courseToDelete = courses.find(c => c.id === id);
-    setCourses(prev => prev.filter(course => course.id !== id));
+    await deleteCourse(id);
     toast({
       title: "Course deleted",
       description: `${courseToDelete?.name} has been removed from your timetable.`,
@@ -76,6 +64,22 @@ const Index = () => {
     setShowForm(false);
     setEditingCourse(null);
   };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your timetable...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (showForm) {
     return (
@@ -105,13 +109,27 @@ const Index = () => {
                 Organize and track your academic schedule with ease
               </p>
             </div>
-            <Button 
-              onClick={() => setShowForm(true)}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Course
-            </Button>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <User className="w-4 h-4" />
+                {user.email}
+              </div>
+              <Button 
+                onClick={() => setShowForm(true)}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Course
+              </Button>
+              <Button 
+                onClick={handleSignOut}
+                variant="outline"
+                size="sm"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </Button>
+            </div>
           </div>
         </div>
 
